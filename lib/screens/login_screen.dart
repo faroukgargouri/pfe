@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/screens/admin_product_screen.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter_application_1/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-
-import 'main_nav_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,122 +10,130 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final emailCtrl = TextEditingController();
+  final passwordCtrl = TextEditingController();
   bool isLoading = false;
 
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Erreur'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          )
-        ],
-      ),
-    );
-  }
-
   Future<void> _login() async {
-    final url = Uri.parse('http://192.168.1.14:5274/api/auth/login');
+    final email = emailCtrl.text.trim();
+    final password = passwordCtrl.text.trim();
 
-    try {
-      setState(() => isLoading = true);
-
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': _emailController.text.trim(),
-          'password': _passwordController.text.trim(),
-        }),
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Veuillez remplir tous les champs")),
       );
+      return;
+    }
 
-      setState(() => isLoading = false);
+    setState(() => isLoading = true);
 
-      if (response.statusCode == 200 && response.body.isNotEmpty) {
-        final data = jsonDecode(response.body);
+    final response = await ApiService.login(email, password);
 
-        print("✅ Données reçues : $data");
+    setState(() => isLoading = false);
 
-        if (data['id'] == null) {
-          _showErrorDialog("Erreur : identifiant utilisateur manquant.");
-          return;
-        }
+    if (response['success']) {
+      final user = response['data'];
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('userId', user['id']);
+      await prefs.setString('role', user['role']);
+      await prefs.setString('fullName', '${user['firstName']} ${user['lastName']}');
+      await prefs.setString('codeSage', user['codeSage'] ?? '');
 
-        final prefs = await SharedPreferences.getInstance();
-        prefs.setInt('userId', data['id']);
-        prefs.setString('fullName', '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}');
-        prefs.setString('codeSage', data['codeSage'] ?? 'XXX');
-        prefs.setString('role', data['role'] ?? '');
-
-        if (!mounted) return;
-        if (data['role'] == 'admin') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const AdminProductScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const MainNavScreen()),
-          );
-        }
-      } else {
-        _handleError(response);
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
       if (!mounted) return;
-      _showErrorDialog('Erreur de connexion : $e');
-    }
-  }
-
-  void _handleError(http.Response response) {
-    String errorMessage = "Erreur inconnue";
-    if (response.body.isNotEmpty) {
-      try {
-        final error = jsonDecode(response.body);
-        errorMessage = error['message'] ?? errorMessage;
-      } catch (_) {
-        errorMessage = "Erreur de format JSON.";
+      if (user['role'] == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/client');
       }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response['message'])),
+      );
     }
-    _showErrorDialog(errorMessage);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Connexion")),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: "Email"),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 🖼️ Fond
+          Image.asset(
+            "assets/auth2.png",
+            fit: BoxFit.cover,
+          ),
+
+          // 🖤 Couche noire pour lisibilité
+          Container(
+            color: Colors.black.withOpacity(0.6),
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Image.asset("assets/logo.png", height: 100),
+                    const SizedBox(height: 30),
+                    const Text(
+                      "Bienvenue",
+                      style: TextStyle(
+                        fontSize: 28,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    TextField(
+                      controller: emailCtrl,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        hintText: "Email",
+                        prefixIcon: const Icon(Icons.email),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passwordCtrl,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        hintText: "Mot de passe",
+                        prefixIcon: const Icon(Icons.lock),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: isLoading ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.blueAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      ),
+                      child: isLoading
+                          ? const CircularProgressIndicator()
+                          : const Text("Connexion"),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/register');
+                      },
+                      child: const Text(
+                        "Créer un compte",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(labelText: "Mot de passe"),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: isLoading ? null : _login,
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Se connecter"),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
