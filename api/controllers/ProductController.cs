@@ -22,30 +22,32 @@ namespace TrikiApi.Controllers
             var products = await _context.Products.ToListAsync();
             return Ok(products);
         }
-
-        [HttpPost]
-        public async Task<IActionResult> Add([FromBody] Product product)
-        {
-            try
-            {
-                _context.Products.Add(product);
-                await _context.SaveChangesAsync();
-                return Ok(product);
-            }
-           catch (Exception ex)
+[HttpPost]
+public async Task<IActionResult> Add([FromBody] Product product)
 {
-    var inner = ex.InnerException?.Message ?? "aucune inner exception";
-    Console.WriteLine("❌ ERREUR : " + ex.Message);
-    Console.WriteLine("🔍 Inner Exception : " + inner);
+    if (!ModelState.IsValid)
+        return BadRequest(ModelState);
 
-    return StatusCode(500, new
+    try
     {
-        message = "Erreur serveur",
-        error = $"{ex.Message} - INNER: {inner}"
-    });
+        _context.Products.Add(product);
+        await _context.SaveChangesAsync();
+        return Ok(product);
+    }
+    catch (Exception ex)
+    {
+        var inner = ex.InnerException?.Message ?? "aucune inner exception";
+        Console.WriteLine("❌ ERREUR : " + ex.Message);
+        Console.WriteLine("🔍 Inner Exception : " + inner);
+
+        return StatusCode(500, new
+        {
+            message = "Erreur serveur",
+            error = $"{ex.Message} - INNER: {inner}"
+        });
+    }
 }
 
-        }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)

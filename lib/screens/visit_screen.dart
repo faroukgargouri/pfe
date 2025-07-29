@@ -61,7 +61,7 @@ class _VisitScreenState extends State<VisitScreen> {
   }
 
   Future<bool> _verifierClientExiste(String codeClient) async {
-    final url = Uri.parse('http://192.168.1.14:5274/api/client/check/$codeClient');
+    final url = Uri.parse('http://192.168.54.252:5274/api/client/check/$codeClient');
     final response = await http.get(url);
     return response.statusCode == 200;
   }
@@ -78,7 +78,7 @@ class _VisitScreenState extends State<VisitScreen> {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getInt('userId') ?? 0;
 
-    final url = Uri.parse('http://192.168.1.14:5274/api/visite');
+    final url = Uri.parse('http://192.168.54.252:5274/api/visite');
 
     try {
       final response = await http.post(
